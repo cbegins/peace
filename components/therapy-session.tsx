@@ -40,7 +40,6 @@ export default function TherapySession() {
   const [breathCount, setBreathCount] = useState(0)
   const [maxBreaths] = useState(3)
   const [showNewChatButton, setShowNewChatButton] = useState(false)
-  // <CHANGE> Added state to track if we're in post-breathing music phase for looping
   const [isPostBreathingMusic, setIsPostBreathingMusic] = useState(false)
 
   const newChatButtonTrigger = useMemo(() => (Math.random() > 0.5 ? 7 : 8), [])
@@ -56,7 +55,6 @@ export default function TherapySession() {
     if (audioRef.current) {
       try {
         audioRef.current.currentTime = 0
-        // <CHANGE> Set loop property based on post-breathing music state
         audioRef.current.loop = isPostBreathingMusic
         await audioRef.current.play()
       } catch (error) {
@@ -172,7 +170,6 @@ export default function TherapySession() {
           setBreathingTimer(180)
           setBreathingPhaseProgress(0)
           setBreathingPhaseTimer(4)
-          // <CHANGE> Set post-breathing music state to true for looping
           setIsPostBreathingMusic(true)
           setShowPeacefulMusic(true)
           return 0
@@ -186,7 +183,6 @@ export default function TherapySession() {
     cleanup() // Clear any existing intervals
     playAudio() // Start audio playback
 
-    // <CHANGE> Modified timer logic to handle looping for post-breathing music
     if (isPostBreathingMusic) {
       // For post-breathing music, just start the audio and let it loop
       // No timer needed as it should play indefinitely
@@ -351,8 +347,13 @@ export default function TherapySession() {
 
   if (showInitialBreathing) {
     return (
-      <main className="absolute inset-0 z-20 flex items-center justify-center px-4" style={gradientStyle}>
-        <div className="text-center text-white">
+      <main
+        className="absolute inset-0 z-20 flex items-center justify-center p-4 min-h-screen w-full overflow-hidden touch-action-manipulation"
+        style={gradientStyle}
+      >
+        <div className="text-center text-white w-full max-w-md">
+          {" "}
+          {/* Added w-full and max-w-md for better responsiveness */}
           <div className="mb-6 sm:mb-8">
             <div className="w-48 sm:w-64 h-2 bg-white/20 rounded-full mx-auto mb-4">
               <div
@@ -364,17 +365,14 @@ export default function TherapySession() {
               {breathCount}/{maxBreaths} શ્વાસ પૂર્ણ
             </p>
           </div>
-
           <div
-            className={`w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 mx-auto mb-6 sm:mb-8 rounded-full border-2 border-white/40 transition-all duration-[4000ms] ease-in-out ${
+            className={`w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 mx-auto mb-6 sm:mb-8 rounded-full border-2 border-white/40 transition-all duration-[4000ms] ease-in-out will-change-transform ${
               breathingPhase === "inhale" ? "scale-125 bg-white/20 shadow-lg shadow-white/20" : "scale-100 bg-white/10"
             }`}
           />
-
           <p className="text-xl sm:text-2xl md:text-3xl font-light mb-4 text-balance">
             {breathingPhase === "inhale" ? "શ્વાસ અંદર લો" : "શ્વાસ બહાર કાઢો"}
           </p>
-
           {breathCount >= maxBreaths && (
             <p className="text-white/80 text-base sm:text-lg animate-fade-in">શાબાશ! આગળ વધી રહ્યા છીએ...</p>
           )}
@@ -385,8 +383,10 @@ export default function TherapySession() {
 
   if (showInitialPeacefulMusic) {
     return (
-      <main className="absolute inset-0 z-20 flex items-center justify-center">
-        <div className="text-center text-white max-w-xs sm:max-w-2xl mx-auto px-4 sm:px-8">
+      <main className="absolute inset-0 z-20 flex items-center justify-center p-4 min-h-screen w-full overflow-hidden touch-action-manipulation">
+        <div className="text-center text-white w-full max-w-xs sm:max-w-2xl mx-auto">
+          {" "}
+          {/* Removed px-4 sm:px-8 as p-4 on main handles it */}
           <div className="mb-4 sm:mb-6 md:mb-8">
             <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-light text-white mb-3 sm:mb-4 md:mb-6 leading-relaxed text-balance">
               શાંત સંગીત કેમ જરૂરી છે?
@@ -396,7 +396,6 @@ export default function TherapySession() {
               મનને સ્થિર કરો.
             </p>
           </div>
-
           <div className="mb-3 sm:mb-4 md:mb-6">
             <audio
               ref={audioRef}
@@ -414,7 +413,6 @@ export default function TherapySession() {
               તમારું બ્રાઉઝર ઓડિયો સપોર્ટ કરતું નથી.
             </audio>
           </div>
-
           {!audioLoaded && !audioError && (
             <button
               onClick={handleMusicStart}
@@ -423,13 +421,11 @@ export default function TherapySession() {
               સંગીત શરૂ કરો
             </button>
           )}
-
           {audioError && (
             <p className="text-red-400 text-xs sm:text-sm mb-3 sm:mb-4">
               ઓડિયો લોડ કરવામાં સમસ્યા. કૃપા કરીને પેજ રિફ્રેશ કરો.
             </p>
           )}
-
           <div className="space-y-2">
             <button
               onClick={skipToChat}
@@ -443,45 +439,39 @@ export default function TherapySession() {
       </main>
     )
   }
-if (showBreathing) {
-  return (
-    <main className="absolute inset-0 z-20 flex items-center justify-center px-4">
-      <div className="text-center text-white">
-        <div className="mb-6 sm:mb-8">
-          <p className="text-yellow-300 text-sm sm:text-base font-medium">
-            {breathingPhaseTimer} સેકન્ડ બાકી
+  if (showBreathing) {
+    return (
+      <main className="absolute inset-0 z-20 flex items-center justify-center p-4 min-h-screen w-full overflow-hidden touch-action-manipulation">
+        <div className="text-center text-white w-full max-w-md">
+          {" "}
+          {/* Added w-full and max-w-md for better responsiveness */}
+          <div className="mb-6 sm:mb-8">
+            <p className="text-yellow-300 text-sm sm:text-base font-medium">{breathingPhaseTimer} સેકન્ડ બાકી</p>
+          </div>
+          <div
+            className={`w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto mb-4 sm:mb-6 md:mb-8 rounded-full border-2 border-white/30 transition-all ease-in-out will-change-transform ${
+              breathingPhase === "inhale"
+                ? "scale-150 bg-white/10 duration-[4000ms]"
+                : breathingPhase === "exhale"
+                  ? "scale-100 bg-white/5 duration-[6000ms]"
+                  : "scale-100 bg-white/0 duration-[4000ms]"
+            }`}
+          />
+          <p className="text-lg sm:text-xl md:text-2xl font-light mb-2 text-balance">
+            {breathingPhase === "inhale" ? "શ્વાસ અંદર લો" : breathingPhase === "exhale" ? "શ્વાસ બહાર કાઢો" : "રોકો"}
           </p>
+          <p className="text-white/70 text-sm">{formatTime(breathingTimer)} બાકી</p>
         </div>
-
-        <div
-          className={`w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto mb-4 sm:mb-6 md:mb-8 rounded-full border-2 border-white/30 transition-all ease-in-out ${
-            breathingPhase === "inhale"
-              ? "scale-150 bg-white/10 duration-[4000ms]"
-              : breathingPhase === "exhale"
-              ? "scale-100 bg-white/5 duration-[6000ms]"
-              : "scale-100 bg-white/0 duration-[4000ms]"
-          }`}
-        />
-
-        <p className="text-lg sm:text-xl md:text-2xl font-light mb-2 text-balance">
-          {breathingPhase === "inhale"
-            ? "શ્વાસ અંદર લો"
-            : breathingPhase === "exhale"
-            ? "શ્વાસ બહાર કાઢો"
-            : "રોકો"}
-        </p>
-
-        <p className="text-white/70 text-sm">{formatTime(breathingTimer)} બાકી</p>
-      </div>
-    </main>
-  );
-}
-
+      </main>
+    )
+  }
 
   if (showPeacefulMusic) {
     return (
-      <main className="absolute inset-0 z-20 flex items-center justify-center">
-        <div className="text-center text-white max-w-xs sm:max-w-2xl mx-auto px-4 sm:px-8">
+      <main className="absolute inset-0 z-20 flex items-center justify-center p-4 min-h-screen w-full overflow-hidden touch-action-manipulation">
+        <div className="text-center text-white w-full max-w-xs sm:max-w-2xl mx-auto">
+          {" "}
+          {/* Removed px-4 sm:px-8 as p-4 on main handles it */}
           <div className="mb-4 sm:mb-6 md:mb-8">
             <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-light text-white mb-3 sm:mb-4 md:mb-6 leading-relaxed text-balance">
               શાંત સંગીત કેમ જરૂરી છે?
@@ -507,7 +497,6 @@ if (showBreathing) {
               તમારું બ્રાઉઝર ઓડિયો સપોર્ટ કરતું નથી.
             </audio>
           </div>
-          {/* <CHANGE> Modified to show different text for post-breathing music phase */}
           {isPostBreathingMusic ? (
             <div>
               <p className="text-white/70 text-sm mb-2 sm:mb-4">શાંત સંગીત ચાલુ છે...</p>
@@ -542,7 +531,7 @@ if (showBreathing) {
   }
 
   return (
-    <main className="absolute inset-0 z-20 flex items-center justify-center p-4 sm:p-6 md:p-8">
+    <main className="absolute inset-0 z-20 flex items-center justify-center p-4 min-h-screen w-full overflow-hidden touch-action-manipulation">
       <div className="w-full max-w-xs sm:max-w-2xl">
         <div className="mb-4 sm:mb-6 md:mb-8 space-y-3 sm:space-y-4 md:space-y-6 text-center">
           {lastUserResponse && (
