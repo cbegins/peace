@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 
@@ -38,28 +40,33 @@ export default function TherapySession() {
   const [breathCount, setBreathCount] = useState(0)
   const [maxBreaths] = useState(3)
   const [showNewChatButton, setShowNewChatButton] = useState(false)
-  const [newChatButtonTrigger] = useState(Math.random() > 0.5 ? 7 : 8) // Random between 7 and 8
+  // <CHANGE> Added state to track if we're in post-breathing music phase for looping
+  const [isPostBreathingMusic, setIsPostBreathingMusic] = useState(false)
 
-  const cleanup = () => {
+  const newChatButtonTrigger = useMemo(() => (Math.random() > 0.5 ? 7 : 8), [])
+
+  const cleanup = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
-  }
+  }, [])
 
-  const playAudio = async () => {
+  const playAudio = useCallback(async () => {
     if (audioRef.current) {
       try {
         audioRef.current.currentTime = 0
+        // <CHANGE> Set loop property based on post-breathing music state
+        audioRef.current.loop = isPostBreathingMusic
         await audioRef.current.play()
       } catch (error) {
         console.error("Audio play failed:", error)
         setAudioError(true)
       }
     }
-  }
+  }, [isPostBreathingMusic])
 
-  const startSession = async () => {
+  const startSession = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch("/api/therapy", {
@@ -78,9 +85,9 @@ export default function TherapySession() {
       setCurrentQuestion("આજે તમે કેવું અનુભવી રહ્યા છો?")
     }
     setIsLoading(false)
-  }
+  }, [])
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!currentInput.trim() || isLoading) return
 
     const userMessage = { role: "user" as const, content: currentInput }
@@ -114,7 +121,7 @@ export default function TherapySession() {
 
       if (data.shouldEnd) {
         setSessionEnded(true)
-        setCurrentQuestion("શું તમે વધારાના આરામ માટે 3 મિનિટનું શ્વાસ સત્ર ઈચ્છો છો?")
+        setCurrentQuestion("")
       } else {
         setLastUserResponse("")
         setCurrentQuestion(data.question)
@@ -124,9 +131,9 @@ export default function TherapySession() {
       setCurrentQuestion("તે વિશે વધુ કહો.")
     }
     setIsLoading(false)
-  }
+  }, [currentInput, isLoading, conversationHistory, currentQuestion, newChatButtonTrigger, showNewChatButton])
 
-  const startBreathing = () => {
+  const startBreathing = useCallback(() => {
     setShowBreathing(true)
     setBreathingPhaseProgress(0)
     setBreathingPhaseTimer(4)
@@ -165,17 +172,26 @@ export default function TherapySession() {
           setBreathingTimer(180)
           setBreathingPhaseProgress(0)
           setBreathingPhaseTimer(4)
+          // <CHANGE> Set post-breathing music state to true for looping
+          setIsPostBreathingMusic(true)
           setShowPeacefulMusic(true)
           return 0
         }
         return prev - 1
       })
     }, 1000)
-  }
+  }, [])
 
-  const startPeacefulMusic = () => {
+  const startPeacefulMusic = useCallback(() => {
     cleanup() // Clear any existing intervals
     playAudio() // Start audio playback
+
+    // <CHANGE> Modified timer logic to handle looping for post-breathing music
+    if (isPostBreathingMusic) {
+      // For post-breathing music, just start the audio and let it loop
+      // No timer needed as it should play indefinitely
+      return
+    }
 
     intervalRef.current = setInterval(() => {
       setMusicTimer((prev) => {
@@ -195,16 +211,16 @@ export default function TherapySession() {
         return prev - 1
       })
     }, 1000)
-  }
+  }, [cleanup, playAudio, showInitialPeacefulMusic, startSession, isPostBreathingMusic])
 
-  const handleMusicStart = () => {
+  const handleMusicStart = useCallback(() => {
     if (!audioLoaded && !audioError) {
       playAudio()
     }
     startPeacefulMusic()
-  }
+  }, [audioLoaded, audioError, playAudio, startPeacefulMusic])
 
-  const skipToChat = () => {
+  const skipToChat = useCallback(() => {
     cleanup() // Clear any existing intervals
     if (audioRef.current) {
       audioRef.current.pause()
@@ -214,9 +230,9 @@ export default function TherapySession() {
     setShowInitialPeacefulMusic(false)
     setChatStarted(true)
     startSession()
-  }
+  }, [cleanup, startSession])
 
-  const startInitialBreathing = () => {
+  const startInitialBreathing = useCallback(() => {
     const breathingInterval = setInterval(() => {
       setBreathingPhase((prev) => {
         if (prev === "exhale") {
@@ -236,25 +252,25 @@ export default function TherapySession() {
         return "exhale"
       })
     }, 4000)
-  }
+  }, [maxBreaths])
 
   useEffect(() => {
     if (showInitialBreathing) {
       startInitialBreathing()
     }
-  }, [showInitialBreathing])
+  }, [showInitialBreathing, startInitialBreathing])
 
   useEffect(() => {
     if (showPeacefulMusic) {
       startPeacefulMusic()
     }
-  }, [showPeacefulMusic])
+  }, [showPeacefulMusic, startPeacefulMusic])
 
   useEffect(() => {
     return cleanup
-  }, [])
+  }, [cleanup])
 
-  const submitFeedback = async () => {
+  const submitFeedback = useCallback(async () => {
     if (!feedbackInput.trim()) return
 
     try {
@@ -277,36 +293,71 @@ export default function TherapySession() {
       console.error("Failed to submit feedback:", error)
       setFeedbackSubmitted(true)
     }
-  }
+  }, [feedbackInput])
 
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
+  }, [])
 
-  const handleNewSession = () => {
+  const handleNewSession = useCallback(() => {
     cleanup() // Clean up before navigation
     router.push("/")
     setTimeout(() => {
       window.location.reload()
     }, 100)
-  }
+  }, [cleanup, router])
+
+  const handleCloseSession = useCallback(() => {
+    cleanup() // Clean up intervals
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    setSessionEnded(true)
+    setCurrentQuestion("શું તમે વધારાના આરામ માટે 3 મિનિટનું શ્વાસ સત્ર ઈચ્છો છો?")
+  }, [cleanup])
+
+  const handleTextareaKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault()
+        sendMessage()
+      }
+    },
+    [sendMessage],
+  )
+
+  const handleFeedbackKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault()
+        submitFeedback()
+      }
+    },
+    [submitFeedback],
+  )
+
+  const gradientStyle = useMemo(
+    () => ({
+      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    }),
+    [],
+  )
+
+  const breathProgressWidth = useMemo(() => `${(breathCount / maxBreaths) * 100}%`, [breathCount, maxBreaths])
+  const breathingProgressWidth = useMemo(() => `${breathingPhaseProgress}%`, [breathingPhaseProgress])
 
   if (showInitialBreathing) {
     return (
-      <main
-        className="absolute inset-0 z-20 flex items-center justify-center px-4"
-        style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        }}
-      >
+      <main className="absolute inset-0 z-20 flex items-center justify-center px-4" style={gradientStyle}>
         <div className="text-center text-white">
-          <div className="mb-8">
-            <div className="w-64 h-2 bg-white/20 rounded-full mx-auto mb-4">
+          <div className="mb-6 sm:mb-8">
+            <div className="w-48 sm:w-64 h-2 bg-white/20 rounded-full mx-auto mb-4">
               <div
                 className="h-full bg-white/60 rounded-full transition-all duration-500"
-                style={{ width: `${(breathCount / maxBreaths) * 100}%` }}
+                style={{ width: breathProgressWidth }}
               />
             </div>
             <p className="text-white/70 text-sm">
@@ -315,17 +366,17 @@ export default function TherapySession() {
           </div>
 
           <div
-            className={`w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-8 rounded-full border-2 border-white/40 transition-all duration-[4000ms] ease-in-out ${
+            className={`w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 mx-auto mb-6 sm:mb-8 rounded-full border-2 border-white/40 transition-all duration-[4000ms] ease-in-out ${
               breathingPhase === "inhale" ? "scale-125 bg-white/20 shadow-lg shadow-white/20" : "scale-100 bg-white/10"
             }`}
           />
 
-          <p className="text-2xl sm:text-3xl font-light mb-4">
+          <p className="text-xl sm:text-2xl md:text-3xl font-light mb-4 text-balance">
             {breathingPhase === "inhale" ? "શ્વાસ અંદર લો" : "શ્વાસ બહાર કાઢો"}
           </p>
 
           {breathCount >= maxBreaths && (
-            <p className="text-white/80 text-lg animate-fade-in">શાબાશ! આગળ વધી રહ્યા છીએ...</p>
+            <p className="text-white/80 text-base sm:text-lg animate-fade-in">શાબાશ! આગળ વધી રહ્યા છીએ...</p>
           )}
         </div>
       </main>
@@ -335,28 +386,31 @@ export default function TherapySession() {
   if (showInitialPeacefulMusic) {
     return (
       <main className="absolute inset-0 z-20 flex items-center justify-center">
-        <div className="text-center text-white max-w-2xl mx-auto px-4 sm:px-8">
-          <div className="mb-6 sm:mb-8">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-4 sm:mb-6 leading-relaxed text-balance">
+        <div className="text-center text-white max-w-xs sm:max-w-2xl mx-auto px-4 sm:px-8">
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-light text-white mb-3 sm:mb-4 md:mb-6 leading-relaxed text-balance">
               શાંત સંગીત કેમ જરૂરી છે?
             </h2>
-            <p className="text-white/80 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8 text-balance">
+            <p className="text-white/80 text-sm sm:text-base md:text-lg leading-relaxed mb-4 sm:mb-6 md:mb-8 text-balance">
               શાંત સંગીત તમારા મનને આરામ આપે છે, તણાવ ઘટાડે છે અને આંતરિક શાંતિ લાવે છે. આ 55 સેકન્ડ માટે આ શાંતિપૂર્ણ સંગીત સાંભળો અને તમારા
               મનને સ્થિર કરો.
             </p>
           </div>
 
-          <div className="mb-4 sm:mb-6">
+          <div className="mb-3 sm:mb-4 md:mb-6">
             <audio
               ref={audioRef}
               controls
               preload="auto"
-              className="w-full max-w-sm sm:max-w-md mx-auto rounded-lg shadow-lg"
+              className="w-full max-w-xs sm:max-w-sm md:max-w-md mx-auto rounded-lg shadow-lg"
               onLoadedData={() => setAudioLoaded(true)}
               onError={() => setAudioError(true)}
               onCanPlayThrough={() => setAudioLoaded(true)}
             >
-              <source src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/peaceful-music-rWO7ahVZVbnxCzswIEZ85iGFsa47NK.mp3" type="audio/mpeg" />
+              <source
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/peaceful-music-rWO7ahVZVbnxCzswIEZ85iGFsa47NK.mp3"
+                type="audio/mpeg"
+              />
               તમારું બ્રાઉઝર ઓડિયો સપોર્ટ કરતું નથી.
             </audio>
           </div>
@@ -364,18 +418,22 @@ export default function TherapySession() {
           {!audioLoaded && !audioError && (
             <button
               onClick={handleMusicStart}
-              className="mb-4 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
+              className="mb-3 sm:mb-4 px-4 sm:px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
             >
               સંગીત શરૂ કરો
             </button>
           )}
 
-          {audioError && <p className="text-red-400 text-sm mb-4">ઓડિયો લોડ કરવામાં સમસ્યા. કૃપા કરીને પેજ રિફ્રેશ કરો.</p>}
+          {audioError && (
+            <p className="text-red-400 text-xs sm:text-sm mb-3 sm:mb-4">
+              ઓડિયો લોડ કરવામાં સમસ્યા. કૃપા કરીને પેજ રિફ્રેશ કરો.
+            </p>
+          )}
 
           <div className="space-y-2">
             <button
               onClick={skipToChat}
-              className="px-6 sm:px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
+              className="px-4 sm:px-6 md:px-8 py-2 sm:py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
             >
               આગળ વધો
             </button>
@@ -385,66 +443,95 @@ export default function TherapySession() {
       </main>
     )
   }
-
-  if (showBreathing) {
-    return (
-      <main className="absolute inset-0 z-20 flex items-center justify-center px-4">
-        <div className="text-center text-white">
-          <div className="mb-8">
-            <div className="w-96 h-6 bg-gray-800 rounded-full mx-auto mb-4 border-2 border-white/50 shadow-lg">
-              <div
-                className="h-full bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-linear shadow-lg"
-                style={{ width: `${breathingPhaseProgress}%` }}
-              />
-            </div>
-            <p className="text-white text-lg font-semibold mb-2">
-              {breathingPhase === "inhale" ? "શ્વાસ અંદર લો" : "શ્વાસ બહાર કાઢો"}
-            </p>
-            <p className="text-yellow-300 text-base font-medium">{breathingPhaseTimer} સેકન્ડ બાકી</p>
-          </div>
-
-          <div
-            className={`w-24 h-24 sm:w-32 sm:h-32 mx-auto mb-6 sm:mb-8 rounded-full border-2 border-white/30 transition-all duration-[4000ms] ease-in-out ${
-              breathingPhase === "inhale" ? "scale-150 bg-white/10" : "scale-100 bg-white/5"
-            }`}
-          />
-          <p className="text-xl sm:text-2xl font-light mb-2">
-            {breathingPhase === "inhale" ? "શ્વાસ અંદર લો" : "શ્વાસ બહાર કાઢો"}
+if (showBreathing) {
+  return (
+    <main className="absolute inset-0 z-20 flex items-center justify-center px-4">
+      <div className="text-center text-white">
+        <div className="mb-6 sm:mb-8">
+          <p className="text-yellow-300 text-sm sm:text-base font-medium">
+            {breathingPhaseTimer} સેકન્ડ બાકી
           </p>
-          <p className="text-white/70 text-sm">{formatTime(breathingTimer)} બાકી</p>
         </div>
-      </main>
-    )
-  }
+
+        <div
+          className={`w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto mb-4 sm:mb-6 md:mb-8 rounded-full border-2 border-white/30 transition-all ease-in-out ${
+            breathingPhase === "inhale"
+              ? "scale-150 bg-white/10 duration-[4000ms]"
+              : breathingPhase === "exhale"
+              ? "scale-100 bg-white/5 duration-[6000ms]"
+              : "scale-100 bg-white/0 duration-[4000ms]"
+          }`}
+        />
+
+        <p className="text-lg sm:text-xl md:text-2xl font-light mb-2 text-balance">
+          {breathingPhase === "inhale"
+            ? "શ્વાસ અંદર લો"
+            : breathingPhase === "exhale"
+            ? "શ્વાસ બહાર કાઢો"
+            : "રોકો"}
+        </p>
+
+        <p className="text-white/70 text-sm">{formatTime(breathingTimer)} બાકી</p>
+      </div>
+    </main>
+  );
+}
+
 
   if (showPeacefulMusic) {
     return (
       <main className="absolute inset-0 z-20 flex items-center justify-center">
-        <div className="text-center text-white max-w-2xl mx-auto px-4 sm:px-8">
-          <div className="mb-6 sm:mb-8">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-4 sm:mb-6 leading-relaxed text-balance">
+        <div className="text-center text-white max-w-xs sm:max-w-2xl mx-auto px-4 sm:px-8">
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-light text-white mb-3 sm:mb-4 md:mb-6 leading-relaxed text-balance">
               શાંત સંગીત કેમ જરૂરી છે?
             </h2>
-            <p className="text-white/80 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8 text-balance">
+            <p className="text-white/80 text-sm sm:text-base md:text-lg leading-relaxed mb-4 sm:mb-6 md:mb-8 text-balance">
               શાંત સંગીત તમારા મનને આરામ આપે છે, તણાવ ઘટાડે છે અને આંતરિક શાંતિ લાવે છે. આ 55 સેકન્ડ માટે આ શાંતિપૂર્ણ સંગીત સાંભળો અને તમારા
               મનને સ્થિર કરો.
             </p>
           </div>
-          <div className="mb-4 sm:mb-6">
+          <div className="mb-3 sm:mb-4 md:mb-6">
             <audio
               ref={audioRef}
               controls
               preload="auto"
-              className="w-full max-w-sm sm:max-w-md mx-auto rounded-lg shadow-lg"
+              className="w-full max-w-xs sm:max-w-sm md:max-w-md mx-auto rounded-lg shadow-lg"
               onLoadedData={() => setAudioLoaded(true)}
               onError={() => setAudioError(true)}
             >
-              <source src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/peaceful-music-rWO7ahVZVbnxCzswIEZ85iGFsa47NK.mp3" type="audio/mpeg" />
+              <source
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/peaceful-music-rWO7ahVZVbnxCzswIEZ85iGFsa47NK.mp3"
+                type="audio/mpeg"
+              />
               તમારું બ્રાઉઝર ઓડિયો સપોર્ટ કરતું નથી.
             </audio>
           </div>
-          <p className="text-white/70 text-sm mb-2 sm:mb-4">{musicTimer} સેકન્ડ બાકી</p>
-          <p className="text-white/60 text-xs sm:text-sm">શાંત સંગીત સાંભળો અને આરામ કરો</p>
+          {/* <CHANGE> Modified to show different text for post-breathing music phase */}
+          {isPostBreathingMusic ? (
+            <div>
+              <p className="text-white/70 text-sm mb-2 sm:mb-4">શાંત સંગીત ચાલુ છે...</p>
+              <p className="text-white/60 text-xs sm:text-sm">આરામ કરો અને સંગીત સાંભળો</p>
+              <button
+                onClick={() => {
+                  if (audioRef.current) {
+                    audioRef.current.pause()
+                    audioRef.current.currentTime = 0
+                  }
+                  setShowPeacefulMusic(false)
+                  setShowFeedback(true)
+                }}
+                className="mt-4 px-4 sm:px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
+              >
+                પ્રતિસાદ પર જાઓ
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-white/70 text-sm mb-2 sm:mb-4">{musicTimer} સેકન્ડ બાકી</p>
+              <p className="text-white/60 text-xs sm:text-sm">શાંત સંગીત સાંભળો અને આરામ કરો</p>
+            </div>
+          )}
         </div>
       </main>
     )
@@ -455,23 +542,33 @@ export default function TherapySession() {
   }
 
   return (
-    <main className="absolute inset-0 z-20 flex items-center justify-center p-4 sm:p-8">
-      <div className="w-full max-w-2xl">
-        <div className="mb-6 sm:mb-8 space-y-4 sm:space-y-6 text-center">
-          {lastUserResponse && <p className="text-white/60 text-sm mb-4 italic">"{lastUserResponse}"</p>}
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 leading-relaxed text-balance">
+    <main className="absolute inset-0 z-20 flex items-center justify-center p-4 sm:p-6 md:p-8">
+      <div className="w-full max-w-xs sm:max-w-2xl">
+        <div className="mb-4 sm:mb-6 md:mb-8 space-y-3 sm:space-y-4 md:space-y-6 text-center">
+          {lastUserResponse && (
+            <p className="text-white/60 text-xs sm:text-sm mb-3 sm:mb-4 italic text-balance">"{lastUserResponse}"</p>
+          )}
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-light text-white mb-4 sm:mb-6 md:mb-8 leading-relaxed text-balance">
             {currentQuestion}
           </h2>
         </div>
 
         {showNewChatButton && !sessionEnded && (
           <div className="fixed top-4 right-4 z-30">
-            <button
-              onClick={handleNewSession}
-              className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-xs border border-white/20 backdrop-blur-sm transition-all duration-200"
-            >
-              new chat session
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleNewSession}
+                className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-xs border border-white/20 backdrop-blur-sm transition-all duration-200"
+              >
+                New Chat Session
+              </button>
+              <button
+                onClick={handleCloseSession}
+                className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-white rounded text-xs border border-red-300/20 backdrop-blur-sm transition-all duration-200"
+              >
+                Close Session
+              </button>
+            </div>
           </div>
         )}
 
@@ -481,29 +578,24 @@ export default function TherapySession() {
               value={currentInput}
               onChange={(e) => setCurrentInput(e.target.value)}
               placeholder="તમારા વિચારો શેર કરો..."
-              className="w-full max-w-lg mx-auto mb-6 bg-white/5 border-white/20 text-white placeholder:text-white/40 text-center resize-none min-h-[100px] sm:min-h-[120px] text-base sm:text-lg leading-relaxed backdrop-blur-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  sendMessage()
-                }
-              }}
+              className="w-full max-w-xs sm:max-w-lg mx-auto mb-4 sm:mb-6 bg-white/5 border-white/20 text-white placeholder:text-white/40 text-center resize-none min-h-[80px] sm:min-h-[100px] md:min-h-[120px] text-sm sm:text-base md:text-lg leading-relaxed backdrop-blur-sm"
+              onKeyDown={handleTextareaKeyDown}
               disabled={isLoading}
             />
           </div>
         )}
 
         {sessionEnded && !showFeedback && (
-          <div className="text-center space-y-4">
+          <div className="text-center space-y-3 sm:space-y-4">
             <button
               onClick={startBreathing}
-              className="px-6 sm:px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
+              className="px-4 sm:px-6 md:px-8 py-2 sm:py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
             >
               શ્વાસ સત્ર શરૂ કરો
             </button>
             <button
               onClick={() => setShowFeedback(true)}
-              className="block mx-auto px-6 sm:px-8 py-3 bg-transparent hover:bg-white/10 text-white/80 hover:text-white rounded-full transition-all duration-200 text-sm"
+              className="block mx-auto px-4 sm:px-6 md:px-8 py-2 sm:py-3 bg-transparent hover:bg-white/10 text-white/80 hover:text-white rounded-full transition-all duration-200 text-xs sm:text-sm"
             >
               પ્રતિસાદ પર જાઓ
             </button>
@@ -511,23 +603,20 @@ export default function TherapySession() {
         )}
 
         {showFeedback && !feedbackSubmitted && (
-          <div className="text-center space-y-4 sm:space-y-6">
-            <h3 className="text-xl sm:text-2xl font-light text-white mb-4">તમારો અનુભવ કેવો રહ્યો?</h3>
+          <div className="text-center space-y-3 sm:space-y-4 md:space-y-6">
+            <h3 className="text-lg sm:text-xl md:text-2xl font-light text-white mb-3 sm:mb-4 text-balance">
+              તમારો અનુભવ કેવો રહ્યો?
+            </h3>
             <Textarea
               value={feedbackInput}
               onChange={(e) => setFeedbackInput(e.target.value)}
               placeholder="આ સત્ર વિશે તમારા વિચારો શેર કરો..."
-              className="w-full max-w-lg mx-auto mb-4 sm:mb-6 bg-white/5 border-white/20 text-white placeholder:text-white/40 text-center resize-none min-h-[100px] sm:min-height-[120px] text-base sm:text-lg leading-relaxed backdrop-blur-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  submitFeedback()
-                }
-              }}
+              className="w-full max-w-xs sm:max-w-lg mx-auto mb-3 sm:mb-4 md:mb-6 bg-white/5 border-white/20 text-white placeholder:text-white/40 text-center resize-none min-h-[80px] sm:min-h-[100px] md:min-h-[120px] text-sm sm:text-base md:text-lg leading-relaxed backdrop-blur-sm"
+              onKeyDown={handleFeedbackKeyDown}
             />
             <button
               onClick={submitFeedback}
-              className="px-6 sm:px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
+              className="px-4 sm:px-6 md:px-8 py-2 sm:py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
             >
               પ્રતિસાદ મોકલો
             </button>
@@ -535,12 +624,16 @@ export default function TherapySession() {
         )}
 
         {feedbackSubmitted && (
-          <div className="text-center space-y-4 sm:space-y-6">
-            <h3 className="text-xl sm:text-2xl font-light text-white mb-4">તમારો પ્રતિસાદ માટે આભાર!</h3>
-            <p className="text-white/70 mb-4 sm:mb-6 text-sm sm:text-base">તમારો અનુભવ અમને સુધારવામાં મદદ કરે છે.</p>
+          <div className="text-center space-y-3 sm:space-y-4 md:space-y-6">
+            <h3 className="text-lg sm:text-xl md:text-2xl font-light text-white mb-3 sm:mb-4 text-balance">
+              તમારો પ્રતિસાદ માટે આભાર!
+            </h3>
+            <p className="text-white/70 mb-3 sm:mb-4 md:mb-6 text-xs sm:text-sm md:text-base text-balance">
+              તમારો અનુભવ અમને સુધારવામાં મદદ કરે છે.
+            </p>
             <button
               onClick={handleNewSession}
-              className="px-6 sm:px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
+              className="px-4 sm:px-6 md:px-8 py-2 sm:py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200 backdrop-blur-sm border border-white/20 text-sm sm:text-base"
             >
               નવું સત્ર શરૂ કરો
             </button>
