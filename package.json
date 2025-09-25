@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "PEACE",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -48,6 +48,7 @@
     "cmdk": "latest",
     "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
+    "express-rate-limit": "^8.1.0",
     "framer-motion": "latest",
     "fs": "latest",
     "geist": "^1.3.1",

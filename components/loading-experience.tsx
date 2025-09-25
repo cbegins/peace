@@ -110,7 +110,7 @@ export default function LoadingExperience({ onComplete }: LoadingExperienceProps
 
       // Breathe in (5 seconds)
       setBreathingPhase("in")
-      setTimeout(() => speak("ધીરે ધીરે શ્વાસ અંદર લો"), 200)
+      setTimeout(() => speak("ધીરે ધીરે શ્વાસ અંદર લો"), 150)
 
       setTimeout(() => {
         // Hold (3 seconds)
@@ -120,7 +120,7 @@ export default function LoadingExperience({ onComplete }: LoadingExperienceProps
         setTimeout(() => {
           // Breathe out (5 seconds)
           setBreathingPhase("out")
-          setTimeout(() => speak("ધીરે ધીરે શ્વાસ બહાર કાઢો"), 200)
+          setTimeout(() => speak("ધીરે ધીરે શ્વાસ બહાર કાઢો"), 150)
 
           setTimeout(() => {
             currentCycle++
@@ -158,29 +158,29 @@ export default function LoadingExperience({ onComplete }: LoadingExperienceProps
 
   if (phase === "complete") {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center z-50 animate-fade-out">
+      <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
         <div className="text-center">
           <div className="w-32 h-32 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 mx-auto mb-8 animate-pulse" />
-          <p className="text-white text-3xl font-light font-instrument">Peace માં આપનું સ્વાગત છે</p>
+          <p className="text-black text-3xl font-light font-instrument">Peace માં આપનું સ્વાગત છે</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
       <div className="text-center max-w-md px-6">
         {phase === "instruction" ? (
           <div className="animate-fade-in">
             <div className="w-24 h-24 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 mx-auto mb-8 animate-pulse" />
-            <h1 className="text-white/30 text-2xl font-light mb-4 font-instrument">અમારી સાથે શ્વાસ લેવા માટે એક ક્ષણ લો</h1>
+            <h1 className="text-black/30 text-2xl font-light mb-4 font-instrument">અમારી સાથે શ્વાસ લેવા માટે એક ક્ષણ લો</h1>
           </div>
         ) : (
           <div className="animate-fade-in">
             <div
               className={`w-32 h-32 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 mx-auto mb-8 transition-transform duration-1000 ease-in-out ${getBreathingScale()}`}
             />
-            <h2 className="text-white/20 text-3xl font-light mb-2 font-instrument transition-all duration-500">
+            <h2 className="text-black/60 text-3xl font-light mb-2 font-instrument transition-all duration-500">
               {getBreathingText()}
             </h2>
             <div className="flex justify-center space-x-2 mt-6">
